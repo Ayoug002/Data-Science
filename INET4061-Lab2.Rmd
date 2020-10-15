@@ -1,0 +1,98 @@
+---
+title: "INET4061-Lab2"
+author: "Mahsa Ayoughi"
+date: "9/19/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Overview
+Goals: Create a R markdown and plot the statistical functions, PDF, CDP, Inverse CDF, Normal Distribution and t distribution.
+```{r imports}
+require(ggplot2)
+require(grid)
+require (RCurl)
+require(graphics)
+```
+
+
+## Data 
+Create and plot the following functions: Probability Density Function, Cumulative Distribution Function (CDF), Quantile or Inverse CDF, Normal Distribution and t Distribution.
+
+### Probability Density Function 
+The PDF is the density of probability rather than the probability mass. The concept is very similar to mass density in physics: its unit is probability per unit length.
+
+
+```{r}
+mean = 0
+sd=1
+x <- seq(-4, 4, length=100)
+PDF <- function (x, type= "norm", mean, sd){
+    y <- dnorm(x, mean, sd)
+    ggplot(x,y) 
+    
+}
+```
+
+### Cumulative Distribution Function
+
+The CDF determine the probability that an observation drawn from a distribution falls below a specified value. In essence, cdf() gives you the area under the distribution's density curve to the left of a certain value on the x axis.
+```{r}
+x <- seq(-4, 4, length=100)
+CDF <- function (x, mean, sd){
+  y <- pnorm(x, mean, sd)
+  plot2 <- ggplot (x,y)
+  print (plot2)
+}
+```
+
+
+### Inverse Cumulative Density Function
+This gives the inverse of the CDF where it points to the opposite.
+This graph increases quickly, then plateaus for the rest. 
+
+```{r}
+ICDF <- function (x, mean, sd){
+  y <- qnorm(x, mean, sd)
+  plot3 <- ggplot (x,y)
+  print (plot3)
+}
+```
+
+### T Distribution
+Code Resource: https://stat.ethz.ch/R-manual/R-devel/library/stats/html/TDist.html
+```{r}
+
+1 - pt(1:5, df = 1)
+qt(.975, df = c(1:4,8,12,24))
+tt <- seq(0, 10, len = 21)
+ncp <- seq(0, 6, len = 31)
+ptn <- outer(tt, ncp, function(t, d) pt(t, df = 3, ncp = d))
+t.tit <- "Non-central t - Probabilities"
+image(tt, ncp, ptn, zlim = c(0,1), main = t.tit)
+
+
+```
+
+
+
+## Conclusions 
+Question 2: What is the probability that the Z-score is within two standard deviations of the mean?
+Approximately 95% of the z-score will be within two standard deviations of the mean.
+
+```{r cars}
+summary(cars)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.

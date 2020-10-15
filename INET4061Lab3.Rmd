@@ -1,0 +1,133 @@
+---
+title: "Comparing two groups using the independent two-sample and Paired-sample t-test"
+author: "Mahsa Ayoughi"
+date: "9/27/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+# Overview
+From the two samples drawn from two group, we want to see if there is a difference in means. For the other test, we want to see if the sample taken has a difference in means with a theoretical one. In the Sleep data, it shows the effect of two soporific drugs that increases hours of sleep on 10 patients.
+Reference:http://www.cookbook-r.com/Statistical_analysis/t-test/
+
+# Data 
+
+```{r}
+?sleep
+```
+
+```{r}
+sleep_wide <- data.frame(
+    ID=1:10,
+    group1=sleep$extra[1:10],
+    group2=sleep$extra[11:20]
+)
+```
+
+```{r}
+head(sleep)
+```
+[, 1]	extra	numeric	increase in hours of sleep
+[, 2]	group	factor	drug given
+[, 3]	ID	factor	patient ID
+
+## Student t-test
+null hypothesis: the difference in means is equal to 0
+
+alternative hypothesis: the difference in means is not equal to 0
+
+alpha: 0.5
+
+```{r}
+# Student t-test
+t.test(extra ~ group, sleep, var.equal=TRUE)
+```
+
+
+## Paired t-test
+null hypothesis: the difference in means is equal to 0
+
+alternative hypothesis: the difference in means is not equal to 0
+
+alpha: 0.5
+
+```{r}
+## Paired t-test
+t.test(extra ~ group, sleep, paired=TRUE)
+```
+
+
+# Data Analysis
+
+```{r}
+library(pwr)
+
+# Calculate Statistical Power for Student t-test
+SDpooled = sqrt(((0.75**2)+(2.33**2)/2))
+pwr.t.test(
+  n = 10, 
+  d = (0.75 - 2.33 / SDpooled),
+  sig.level = .05, 
+  type = c("two.sample")
+)
+```
+Fail to reject or reject: Reject the null hypothesis
+
+p-value:0.07919 <br/>
+significance level:0.05
+
+We can see that the p-value is less than the significance level (0.05 < 0.07919) and fail to reject the null hypothesis. The probabilty of rejecting a hypothesis depends on the level of significance and in this case the cutoff which is 0.05 which means there is a 95% confidence level. This shows that there is statistical significance in one or more results.
+
+Confidence level: 3.363874  0.203874 <br/>
+Group 1 and Group 2 Means:  0.75   2.33 
+
+These two means are outside the confidence interval. Also the diffrence between the means are close to zero and this Since the means are outside the confidence interval, we are going fail to reject the hypothesis and are less than 95% confident that our results will accurately show that a difference. 
+
+Power: 0.2064237
+
+The statistical power shows us if the sample size is enough to prove that there is an effect with a given confidence level. This power is low, as the means are outside the confidence levels. The p-value is also smaller than the significance level so we are rejecting the null hypothesis.
+
+
+```{r}
+## Sort by group then ID
+sleep <- sleep[order(sleep$group, sleep$ID), ]
+
+## Calculate Statistical Power for Paired t-test
+s = sqrt(((0.75**2)+(2.33**2)/2))
+
+pwr.t.test(n = 10, 
+           d = (0.75 - 2.33 / s), 
+           sig.level = 0.5, 
+           power = NULL, 
+           type = c("paired")
+)
+```
+Fail to reject or reject: Reject the null hypothesis
+
+p-value: 0.002833 <br/>
+significance level: 0.05
+
+The p-value relates to the significance level because it will tell us if there is something in the results that will show that it is significant. From that, we need to reject the null hypothesis and accept the alternative one. P-value(0.002833) is less than the significance level (0.05) so it is true that we need to reject the null hypothesis.
+
+Confidence Interval:-2.4598858 -0.7001142 <br/>
+Paired Mean: -1.58 
+
+The paired mean is within the confidence interval. Since the mean is inside the confidence interval, we are going to be more confident that our results will accurately show that a difference.
+
+Power: 0.8511177
+
+The statistical power result is showing us if the sample size is enough to show that there is an effect with a given confidence level. From the result (0.8511177) this is closer to 1 but it's not quite there yet. Once again we reject the null hypothesis. The p-value is smaller thant the significance level. But for this result, the mean is within the confidence interval.
+
+# Conclusion
+
+After doing the analysis, I learned that the study data is not enough for either test to be confident enough for their results to be accurate. One thing we also have to consider is that we can't assume that the variances are equal. This could change results.
+
+For the two sample t-test, we would need to get a larger sample size for the power level to increase. Then we will be able to be more confident in the results that the sample size can give an effect. We can't be confident in this result to truly show the whether the mean can show a difference. If the sample size was about n=92, then we would also get a power within 0.95 which is where our confidence level is.
+
+For the paired t-test, the power is higher than the one in the student t-test. This says that the sample size is more accurate and large enough to show that there is an effect. But the number has to be larger. If the sample size was n=20, then the power would be at 0.95 which is the confidence interval we were testing. We can be more confidence in our results to accurately show how the means give an effect.
+
+Out of the two t-test, it looks like the results for the paired t-test are more accurate compared to the two sample t-test, meaning when the sample takes the drugs seperatly there is a less significant diffrence compared to when they take both drugs together. In the future, I suggest that there should be a larger data set and to have a large sample size than 10 people to be more accuarate.
+
+

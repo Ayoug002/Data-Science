@@ -1,0 +1,497 @@
+---
+title: "classification models"
+author: "Mahsa Ayoughi"
+date: "September 29, 2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Overview
+
+This data set used in the CoIL 2000 Challenge contains information on customers of an insurance company. The data consists of 86 variables and includes product usage data and socio-demographic data derived from zip area codes. The data was collected to answer the following question: Can you predict who would be interested in buying a caravan insurance policy and give an explanation why?
+
+The models that will be evaluated are Classification through bagging, boosting, and random forest. The data that are used are unbalanced, undersample, oversample, and SMOTE. 
+
+Reference: https://www.kaggle.com/uciml/caravan-insurance-challenge/home
+
+Over sampling and under sampling are techniques used in data mining and data analytics to modify unequal data classes to create balanced data sets. When one class of data is the underrepresented minority class in the data sample, over sampling techniques may be used. Conversely, if a class of data is the overrepresented majority class, under sampling may be used to balance it with the minority class. Under sampling is used when the amount of collected data is sufficient.
+
+## Data
+
+All of the data are integer types that tells us which policies that people have contributed to. Some of the following policies are third-party, car, trailer, mobile home, and more policies. The data is also separated into two data frames called 'train' and 'test'.
+
+Reference:https://github.com/jayanttikmani/cross-sellingCaravanInsuranceUsingDataMining/blob/master/CaravanInsurance-DataMining.ipynb
+
+```{r}
+setwd
+caravan_df_maindataset <- read.csv('/Users/mahsaayoughi/Downloads/caravan-insurance-challenge.csv')
+head(caravan_df_maindataset)
+
+```
+```{r}
+# Check Shape of Data and List Out All Columns
+str(caravan_df_maindataset)
+```
+
+```{r}
+# Finding which features are numeric.
+# The variable we will be testing is AAANHANG: Number of trailer policies
+numeric_caravan <- which(sapply(caravan_df_maindataset,is.numeric))
+str(caravan_df_maindataset[,numeric_caravan])
+```
+
+```{r}
+trainset <- subset(caravan_df_maindataset, split = TRUE)
+testset <- subset(caravan_df_maindataset, split = FALSE)
+head(trainset)
+head(testset)
+```
+
+## Exploratory Data Analysis
+
+```{r}
+library(ggplot2)
+library(plyr)
+
+Not_Insured_with_caravan  <- sum(caravan_df_maindataset$AAANHANG == 0)
+Insured_with_caravan <- sum(caravan_df_maindataset$AAANHANG == 1)
+
+dat <- data.frame(
+  Policy_status = factor(c("Not_Insured_with_caravan","Insured_with_caravan"), 
+  levels=c("Not_Insured_with_caravan","Insured_with_caravan")),
+  Count = c( Not_Insured_with_caravan , Insured_with_caravan)
+)
+
+ggplot(data=dat, aes(x=Policy_status, y=Count, fill=Policy_status)) +
+  geom_bar(colour="black", stat="identity")
+```
+Based on the count, there seems to be a huge gap between customers who are not insured on their caravan compared to those that are. 
+
+```{r}
+caravan_df_maindataset$AAANHANG <- factor(caravan_df_maindataset$AAANHANG, levels=c(0,1))
+Frequency.AAANHANG <- data.frame(AAANHANG = levels(caravan_df_maindataset$AAANHANG), Count = as.numeric(table(caravan_df_maindataset$AAANHANG)))
+Frequency.AAANHANG
+```
+About .97% of people are insured for their caravan. 99.03% of the people are not insured for their caravan. This data is highly unbalanced. To get a better understanding of the data, we will look at correlations of people who tended to buy caravan insurance. 
+
+```{r}
+library("PerformanceAnalytics")
+TrainDataset <- read.csv('caravan-insurance-challenge.csv')
+
+car_policies <- sum(TrainDataset$AAANHANG == 1 & TrainDataset$car_policies != 0)
+Income_30K <- sum(TrainDataset$AAANHANG == 1 & TrainDataset$MINKM30 != 0)
+Income_3045K <- sum(TrainDataset$AAANHANG == 1 & TrainDataset$MINK3045 != 0)
+contribution_car_policies <- sum(TrainDataset$AAANHANG == 1 & TrainDataset$PPERSAUT != 0)
+contribution_trailer_policies <- sum(TrainDataset$AAANHANG == 1 & TrainDataset$PAANHANG  != 0)
+
+
+dat <- data.frame(
+  Selected_Features = factor(c("car_policies" , "Income_30K " , "Income_3045K" , "contribution_car_policies"  , "contribution_trailer_policies" ), levels=c("car_policies" , "Income_30K " , "Income_3045K" , "contribution_car_policies"  , "contribution_trailer_policies")),
+  Count = c( car_policies  ,  Income_30K  , Income_3045K , contribution_car_policies  , contribution_trailer_policies )
+)
+
+ggplot(data=dat, aes(x=Selected_Features, y=Count, fill=Selected_Features)) +
+  geom_bar(colour="black", stat="identity")
+```
+Looking at the correlation between some variables, it seems that a higher income can contribute more to policies. It also looks like no one has a car policy but a lot of people contribute to that policy. 
+
+# Unbalance Data Frame
+```{r}
+unbalanceDF <- data.frame(matrix(ncol = 20, nrow = 4000))
+caravan_df_train <- trainset
+caravan_df_test <- testset
+caravan_df_train$AAANHANG <- factor(caravan_df_train$AAANHANG, levels = c(0,1))
+```
+
+# Undersample Data Frame
+```{r}
+caravan_df_train <- caravan_df_train
+caravan_df_train_Under <- caravan_df_train[caravan_df_train$AAANHANG==1,]
+```
+
+# Oversample Data Frame
+```{r}
+caravan_df_train_Over <- caravan_df_train[caravan_df_train$AAANHANG==1,]
+```
+
+# SMOTE Data Frame
+```{r}
+library(DMwR)
+set.seed(123457)
+caravan_df_train$AAANHANG <- as.factor(caravan_df_train$AAANHANG)
+caravan_df_train_SMOTE <- SMOTE(AAANHANG~., caravan_df_train, perc.over = 600, perc.under = 262.2)
+```
+
+
+
+## Models
+The following 12 models will show different classification using different methods: bagging, boosting, and random forest. Bagging will help improve stability and accuracy. It helps the model to average out. Boosting helps reduce bias in supervised learning. Random Forest is similar to Bagging, but the idea is to decorrelate several trees made by different bootstrap samples from train data. The variance is reduced once we average out the trees.
+
+Reference: https://github.com/jayanttikmani/cross-sellingCaravanInsuranceUsingDataMining/blob/master/CaravanInsurance-DataMining.ipynb
+
+https://datascienceplus.com/random-forests-in-r/
+
+# Bagging Unbalanced Data
+```{r}
+#Bagging using unbalanced data
+library(randomForest)
+library(plyr)
+library(caret)
+TrainDataset <- trainset
+
+TestDataset <- testset
+set.seed(123457)
+
+#Bagging
+bag.train <- randomForest(as.factor(AAANHANG) ~ ., data = TrainDataset, mtry = 85, importance = TRUE)
+bag.train
+
+# Bagging Prediction For unbalanced data
+yhat.bag <- predict(bag.train, newdata = TestDataset)
+PredictedClass <- ifelse(yhat.bag > 0.5, 1, 0)
+
+#Confusion Matrix
+actual <- (TestDataset$AAANHANG)
+actual <- as.factor(actual)
+PredictedClass <- as.factor(PredictedClass)
+levels(PredictedClass)
+str(PredictedClass)
+str(actual)
+
+confusionMatrix(PredictedClass, actual, positive = "1")
+```
+
+# Bagging Undersampled Data 
+```{r}
+library(ROSE)
+data_balanced_under <- ovun.sample(AAANHANG ~., data = trainset, method = "under", N = 696, seed = 1)$data
+table(data_balanced_under$AAANHANG)
+
+#Bagging on under sampled data
+bag.train.under <- randomForest(as.factor(AAANHANG) ~ ., data = data_balanced_under, mtry = 86, importance = TRUE)
+bag.train.under
+# Prediction on under sampled data
+
+library(randomForest)
+library(caret)
+yhat.bag.under <- predict(bag.train.under, newdata = TestDataset)
+mean((yhat.bag.under-TestDataset)^2)
+
+PredictedClass.under <- ifelse(yhat.bag.under > 0.5, 1, 0)
+#Confusion Matrix of under sampled data
+actual <- (TestDataset$Number_of_mobile_home_policies)
+actual <- as.factor(actual)
+PredictedClass.under <- as.factor(PredictedClass.under)
+levels(PredictedClass.under)
+str(PredictedClass.under)
+str(actual)
+
+confusionMatrix(PredictedClass.under, actual, positive = "1")
+
+#Roc curve of under sampled data
+roc.curve(TestDataset$Number_of_mobile_home_policies, yhat.bag.under)
+```
+
+# Bagging Oversampling Data
+```{r}
+data_balanced_over <- ovun.sample(AAANHANG ~. , data = TrainDataset, method = "over", N = 10948)$data
+#N refers to number of observations in the resulting balanced dataset. We had originally 5719 negative observations. 
+
+#Bagging on Over sampled data
+bag.train.over <- randomForest(as.factor(AAANHANG) ~ ., data = data_balanced_over, mtry = 86, importance = TRUE)
+bag.train.over
+
+#Prediction on over sampled data
+yhat.bag.over <- predict(bag.train.over, newdata = TestDataset)
+mean((yhat.bag.over-TestDataset)^2)
+
+PredictedClass.over <- ifelse(yhat.bag.over > 0.5, 1, 0)
+
+#Confusion Matrix of Over sampled data
+actual <- (TestDataset$AAANHANG)
+actual <- as.factor(actual)
+PredictedClass.over <- as.factor(PredictedClass.over)
+levels(PredictedClass.over)
+str(PredictedClass.over)
+str(actual)
+
+confusionMatrix(PredictedClass.over, actual, positive = "1")
+
+#Roc curve of Over sampled data
+roc.curve(TestDataset$AAANHANG, yhat.bag.over)
+```
+
+# Bagging using SMOTE 
+```{r}
+library(DMwR)
+set.seed(123457)
+caravan_df_train$AAANHANG <- as.factor(caravan_df_train_Under$AAANHANG)
+caravan_df_train_SMOTE <- SMOTE(AAANHANG~., caravan_df_train_Under, perc.over = 600, perc.under = 262.2)
+
+#Let's verify the number of 1s and 0s in our SMOTE data
+SMOTE.Frequency.AAANHANG <- data.frame(AAANHANG = levels(as.factor(caravan_df_train_SMOTE$AAANHANG)), Count = as.numeric(table(caravan_df_train_SMOTE$AAANHANG)))
+SMOTE.Frequency.AAANHANG
+```
+
+
+
+# Boosting Unbalanced Data
+```{r}
+library(tree)
+library(gbm)
+library(ROSE)
+library(caret)
+
+TrainDataset <- caravan_df_train 
+attach(TrainDataset)
+
+TestDataset <- caravan_df_test
+attach(TestDataset)
+
+set.seed(123457)
+
+#Boosting on training set
+boost.train1 <- gbm(AAANHANG ~., data = TrainDataset, distribution = "bernoulli", n.trees = 1000, interaction.depth = 4)
+summary(boost.train1)
+
+#car policies and fire policies seems to be the most important variables
+#producing partial dependance plots for the above 2 variables
+par(mfrow = c(1,2))
+plot(boost.train1, i = "car_policies")
+plot(boost.train1, i = "fire_policies")
+
+#Boosting to predict on test dataset
+yhat.boost.test1 <- predict.gbm(boost.train1, newdata = TestDataset, n.trees = 1000 )
+mean((yhat.boost.test1 - TestDataset)^2)
+#test MSE obtained is 34.138
+
+#Confusion Matrix
+PredictedClass.test1 <- ifelse(yhat.boost.test1 > 0.5, 1, 0)
+actual <- (TestDataset$AAANHANG)
+actual <- as.factor(actual)
+PredictedClass.test1 <- as.factor(PredictedClass.test1)
+levels(PredictedClass.test1)
+str(PredictedClass.test1)
+str(actual)
+
+confusionMatrix(PredictedClass.test1, actual, positive = "1")
+```
+
+# Boosting Undersample Data
+```{r}
+
+data_balanced_under <- ovun.sample(AAANHANG ~., data = TrainDataset, method = "under", N = 696, seed = 1)$data
+table(data_balanced_under$AAANHANG)
+
+#Boosting on under sampled data
+boost.train.under <- gbm(AAANHANG ~., data = data_balanced_under, distribution = "bernoulli", n.trees = 1000, interaction.depth = 4)
+#summary(boost.train.under)
+
+#Predictions on under sampled data
+yhat.boost.test.under <- predict(boost.train.under, newdata = TestDataset, n.trees = 1000)
+mean((yhat.boost.test.under - TestDataset)^2)
+
+#Confusion Matrix - under sampled
+PredictedClass.under <- ifelse(yhat.boost.test.under > 0.5, 1, 0)
+
+actual <- (TestDataset$AAANHANG)
+actual <- as.factor(actual)
+PredictedClass.under <- as.factor(PredictedClass.under)
+levels(PredictedClass.under)
+str(PredictedClass.under)
+str(actual)
+
+confusionMatrix(PredictedClass.under, actual, positive = "1")
+
+#Evaluating Accuracy of under sampled using ROC
+roc.curve(TestDataset$AAANHANG, yhat.boost.test.under)
+```
+
+# Boosting Oversample Data
+```{r}
+#Over Sampling 
+data_balanced_over <- ovun.sample(AAANHANG ~. , data = TrainDataset, method = "over", N = 10948)$data
+#N refers to number of observations in the resulting balanced dataset. We had originally 5719 negative observations. 
+table(data_balanced_over$AAANHANG)
+
+#Boosting on over sampled data
+boost.train.over <- gbm(AAANHANG ~., data = data_balanced_over, distribution = "bernoulli", n.trees = 1000, interaction.depth = 4)
+#summary(boost.train.over)
+
+#Predictions on over sampled data
+yhat.boost.test.over <- predict(boost.train.over, newdata = TestDataset, n.trees = 1000)
+mean((yhat.boost.test.over - TestDataset)^2)
+
+#Confusion Matrix - Over sampled
+PredictedClass.over <- ifelse(yhat.boost.test.over > 0.5, 1, 0)
+actual <- (TestDataset$AAANHANG)
+actual <- as.factor(actual)
+PredictedClass.over <- as.factor(PredictedClass.over)
+levels(PredictedClass.over)
+str(PredictedClass.over)
+str(actual)
+
+confusionMatrix(PredictedClass.over, actual, positive = "1")
+
+#Evaluating Accuracy of over sampled using ROC
+roc.curve(TestDataset$AAANHANG, yhat.boost.test.over)
+```
+
+# Boosting with SMOTE
+```{r}
+library(DMwR)
+set.seed(123457)
+caravan_df_train$AAANHANG <- as.factor(caravan_df_train_Over$AAANHANG)
+caravan_df_train_SMOTE <- SMOTE(AAANHANG~., caravan_df_train_Over, perc.over = 600, perc.under = 262.2)
+
+#Let's verify the number of 1s and 0s in our SMOTE data
+SMOTE.Frequency.AAANHANG <- data.frame(AAANHANG = levels(as.factor(caravan_df_train_SMOTE$AAANHANG)), Count = as.numeric(table(caravan_df_train_SMOTE$AAANHANG)))
+SMOTE.Frequency.AAANHANG
+```
+
+
+
+
+# Random Forest Using Underbalance Data
+```{r}
+
+library(randomForest)
+library(plyr)
+library(caret)
+TrainDataset <- caravan_df_train
+attach(TrainDataset)
+
+TestDataset <- caravan_df_test
+attach(TestDataset)
+set.seed(123457)
+
+#RandomForest
+rf.train <- randomForest(as.factor(AAANHANG) ~., data = TrainDataset, mtry = 9, importance = TRUE)
+rf.train
+
+yhat.rf <- predict(rf.train, newdata = TestDataset)
+mean((yhat.rf-TestDataset)^2)
+# test MSE = 15.46
+
+importance(rf.train)
+
+
+#Confusion Matrix
+PredictedClass <- ifelse(yhat.rf > 0.5, 1, 0)
+actual <- (TestDataset$AAANHANG)
+actual <- as.factor(actual)
+PredictedClass <- as.factor(PredictedClass)
+levels(PredictedClass)
+str(PredictedClass)
+str(actual)
+
+confusionMatrix(PredictedClass, actual, positive = "1")
+
+#ROC Curve
+roc.curve(TestDataset$AAANHANG, yhat.rf, plotit = F)
+```
+
+# Random Forest Using Undersample Data
+```{r}
+#Under sampling 
+data_balanced_under <- ovun.sample(AAANHANG ~., data = TrainDataset, method = "under", N = 696, seed = 1)$data
+table(data_balanced_under$AAANHANG)
+
+#RandomForest on under sampled data
+rf.train.under <- randomForest(as.factor(AAANHANG) ~., data = data_balanced_under, mtry = 9, importance = TRUE)
+rf.train.under
+
+yhat.rf.under <- predict(rf.train.under, newdata = TestDataset)
+mean((yhat.rf.under-TestDataset)^2)
+# test MSE = 15.46
+
+importance(rf.train.under)
+
+#Confusion Matrix
+PredictedClass.under <- ifelse(yhat.rf.under > 0.5, 1, 0)
+actual <- (AAANHANG)
+actual <- as.factor(actual)
+PredictedClass.under <- as.factor(PredictedClass.under)
+levels(PredictedClass.under)
+str(PredictedClass.under)
+str(actual)
+
+confusionMatrix(PredictedClass.under, actual, positive = "1")
+
+#ROC Curve
+roc.curve(TestDataset$AAANHANG, yhat.rf.under, plotit = F)
+```
+
+# Random Forest Using Oversample Data
+```{r}
+#Over Sampling 
+data_balanced_over <- ovun.sample(AAANHANG ~. , data = TrainDataset, method = "over", N = 10948)$data
+
+#RandomForest on over sampled data
+rf.train.over <- randomForest(as.factor(AAANHANG) ~., data = data_balanced_over, mtry = 9, importance = TRUE)
+rf.train.over
+
+yhat.rf.over <- predict(rf.train.over, newdata = TestDataset)
+mean((yhat.rf.over-TestDataset)^2)
+# test MSE = 15.46
+
+importance(rf.train.over)
+
+#Confusion Matrix
+PredictedClass.over <- ifelse(yhat.rf.over > 0.5, 1, 0)
+actual <- (TestDataset$AAANHANG)
+actual <- as.factor(actual)
+PredictedClass.over <- as.factor(PredictedClass.over)
+levels(PredictedClass.over)
+str(PredictedClass.over)
+str(actual)
+
+confusionMatrix(PredictedClass.over, actual, positive = "1")
+
+#ROC Curve
+roc.curve(TestDataset$AAANHANG, yhat.rf.over, plotit = F)
+```
+
+# Random Forest Using SMOTE
+```{r}
+library(DMwR)
+set.seed(123457)
+caravan_df_train$AAANHANG <- as.factor(caravan_df_train_SMOTE$AAANHANG)
+caravan_df_train_SMOTE <- SMOTE(AAANHANG~., caravan_df_train_SMOTE, perc.over = 600, perc.under = 262.2)
+
+#Let's verify the number of 1s and 0s in our SMOTE data
+SMOTE.Frequency.AAANHANG <- data.frame(AAANHANG = levels(as.factor(caravan_df_train_SMOTE$AAANHANG)), Count = as.numeric(table(caravan_df_train_SMOTE$AAANHANG)))
+SMOTE.Frequency.AAANHANG
+```
+
+
+
+# Summary of Performance Measures
+```{r}
+library(ggrepel)
+library(ggplot2)
+library(plyr)
+Sensitivity <- c(0,	0.617647059,	0.621848739,	0.075630252,	0.117647059,	0.600840336,	0.050420168,	0.147058824,	0.613445378)
+PPV <- c(0,	0.112730061,	0.113236419,	0.195652174,	0.133971292,	0.096361186,	0.324324324,	0.165876777,	0.107828656)
+Model<- c("boost_prob_over" ,	"boost_prob_under" ,	"bag_prob" ,	"bag_prob_over" ,	"bag_prob_under" ,	"RF_prob" ,	"RF_prob_over" ,	"RF_prob_under")
+
+## PLoting ppv anf sensitivity from all models cutoff = 0.5 from file ppv_sev.csv
+df1 <- data.frame(col1= Sensitivity, col2= PPV , col3= Model)
+
+ggplot(df1, aes(x=Sensitivity, y=PPV , color = Model , label = Model )) + 
+  ##geom_point(aes(size=17.5))+
+  geom_point() +geom_label_repel(aes(label=Model),hjust=0, vjust=0)
+```
+
+## Conclusion
+
+The models would not compute, there are some errors that I believe involve how I split the train and test data. If I had more time, I would try to figure out if it was actually how I split it or could it be something that I wrote wrong. The processing time also seems to take long for the models to show.
+
+The question that we are answering is, "Can you predict who would be interested in buying a caravan insurance policy and give an explanation why?"
+
+If we're looking at the different variables, there are certain variables that have more data compared to others and could give us a more accurately model and correlation to which variables would help figure out who would be interested. Some variables that seemed helpful to determine who would be interested in buying a caravan insurance is low-level education, age group, marriage status, job occupation, income level, and the type of insurance they already have. Each of these variables help because it lets us see if there is a trend between any of them. For example, I saw that people who have income of 30K tend to contribute some of their salary to policies that they have.
+
+I'm not sure which model is the best because it didn't run. But I think for improvement, we could add the different types of models like Logistic Regression, Naive Bayes and knn. This would give us more models to evaluate and see if we can get a more accuarate model to better answer the question.
